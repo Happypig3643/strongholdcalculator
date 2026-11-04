@@ -1,0 +1,433 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Stronghold Triangulator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: inputs on the left, answer and plan view on the right; stacks to one column on phones. */
+:root {
+  --bg: #edf0ee;
+  --surface: #f8faf9;
+  --fg: #18201d;
+  --muted: #5a6761;
+  --line: #cfd8d3;
+  --accent: #1b6b73;
+  --accent-ink: #ffffff;
+  --warn: #8a5a00;
+  --bad: #a1302b;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12181a;
+    --surface: #1a2225;
+    --fg: #e3ece8;
+    --muted: #93a29c;
+    --line: #2b373b;
+    --accent: #59c1cb;
+    --accent-ink: #0c1a1c;
+    --warn: #e0b25a;
+    --bad: #f08a83;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12181a;
+  --surface: #1a2225;
+  --fg: #e3ece8;
+  --muted: #93a29c;
+  --line: #2b373b;
+  --accent: #59c1cb;
+  --accent-ink: #0c1a1c;
+  --warn: #e0b25a;
+  --bad: #f08a83;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 40px;
+}
+.wrap { max-width: 980px; margin: 0 auto; }
+header { margin-bottom: 20px; }
+h1 {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+  margin: 0 0 6px;
+  text-wrap: balance;
+}
+.axes { margin: 0; color: var(--muted); font-size: 0.9rem; max-width: 65ch; }
+.axes code, .hint code { font-family: var(--font-mono); font-size: 0.85em; }
+
+.app {
+  display: grid;
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 760px) { .app { grid-template-columns: minmax(0, 1fr); } }
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 16px;
+  min-width: 0;
+}
+.col { display: grid; gap: 16px; min-width: 0; }
+
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+legend {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  padding: 0;
+  margin-bottom: 10px;
+}
+.row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field.wide { grid-column: 1 / -1; }
+label { font-size: 0.82rem; color: var(--muted); }
+input[type="number"] {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 8px 10px;
+}
+input[type="number"]:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.divider { border: 0; border-top: 1px solid var(--line); margin: 16px 0; }
+.hint { color: var(--muted); font-size: 0.85rem; margin: 12px 0 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+button {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+.chip {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--warn);
+  border: 1px solid var(--warn);
+  border-radius: 999px;
+  padding: 2px 10px;
+  margin-bottom: 12px;
+}
+
+.answer-label {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 0 0 4px;
+}
+.coords {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: clamp(1.6rem, 6vw, 2.4rem);
+  letter-spacing: -0.02em;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 22px;
+  font-variant-numeric: tabular-nums;
+}
+.coords span small {
+  font-size: 0.45em;
+  font-weight: 500;
+  color: var(--muted);
+  margin-right: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.msg { color: var(--muted); margin: 0; }
+.msg.err { color: var(--bad); }
+
+dl.facts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 16px;
+  margin: 16px 0 0;
+  font-size: 0.9rem;
+}
+dl.facts dt { color: var(--muted); }
+dl.facts dd { margin: 0; font-family: var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; }
+.notes { margin: 14px 0 0; padding-left: 18px; color: var(--warn); font-size: 0.88rem; }
+.notes li + li { margin-top: 4px; }
+.copied { font-size: 0.82rem; color: var(--muted); align-self: center; }
+
+.plan { width: 100%; height: auto; display: block; }
+.plan .grid { stroke: var(--line); stroke-width: 1; }
+.plan .walk { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 5 4; fill: none; }
+.plan .sight { stroke: var(--accent); stroke-width: 2; fill: none; }
+.plan .dot { fill: var(--fg); stroke: var(--surface); stroke-width: 2; }
+.plan .target { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
+.plan .origin { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+.plan text { fill: var(--fg); font-family: var(--font-mono); font-size: 12px; }
+.plan text.dim { fill: var(--muted); font-size: 11px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 0.8rem; color: var(--muted); margin-top: 8px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Stronghold Triangulator</h1>
+    <p class="axes">Flat x/z map, y ignored. <code>+x</code> east, <code>-x</code> west, <code>+z</code> south, <code>-z</code> north. Angles are the F3 yaw: <code>0</code> south, <code>90</code> west, <code>180</code> or <code>-180</code> north, <code>-90</code> east.</p>
+  </header>
+
+  <div class="app">
+    <div class="panel">
+      <fieldset>
+        <legend>Point A: where you start</legend>
+        <div class="row">
+          <div class="field"><label for="ax">x</label><input id="ax" type="number" step="any" inputmode="decimal"></div>
+          <div class="field"><label for="az">z</label><input id="az" type="number" step="any" inputmode="decimal"></div>
+          <div class="field wide"><label for="y1">Angle #1 (yaw toward the stronghold)</label><input id="y1" type="number" step="any" inputmode="decimal"></div>
+        </div>
+      </fieldset>
+      <hr class="divider">
+      <fieldset>
+        <legend>Point B: after your turn</legend>
+        <div class="row">
+          <div class="field"><label for="bx">x</label><input id="bx" type="number" step="any" inputmode="decimal"></div>
+          <div class="field"><label for="bz">z</label><input id="bz" type="number" step="any" inputmode="decimal"></div>
+          <div class="field wide"><label for="y2">Angle #2 (yaw toward the stronghold)</label><input id="y2" type="number" step="any" inputmode="decimal"></div>
+        </div>
+      </fieldset>
+      <p class="hint">Turn about 90 degrees in whichever direction you like and walk 200 blocks or more. Any turn works as long as the two sight lines cross ahead of you.</p>
+      <div class="actions">
+        <button type="button" id="example">Load example</button>
+        <button type="button" id="clear">Clear</button>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="panel" id="result" aria-live="polite">
+        <div id="exampleChip" class="chip" hidden>Example values. Replace them with your own.</div>
+        <p id="empty" class="msg">Enter all six values to see the stronghold location.</p>
+        <p id="error" class="msg err" hidden></p>
+        <div id="ok" hidden>
+          <p class="answer-label">Stronghold estimate</p>
+          <p class="coords"><span><small>x</small><b id="rx"></b></span><span><small>z</small><b id="rz"></b></span></p>
+          <dl class="facts">
+            <dt>Distance from A</dt><dd id="fDistA"></dd>
+            <dt>Distance from (0, 0)</dt><dd id="fDistO"></dd>
+            <dt>Walked, A to B</dt><dd id="fAB"></dd>
+            <dt>Angle at A (90 is ideal)</dt><dd id="fAngA"></dd>
+            <dt>Angle at B</dt><dd id="fAngB"></dd>
+            <dt>Angle at the stronghold</dt><dd id="fAngS"></dd>
+            <dt>Right-triangle check: AB &times; tan(B)</dt><dd id="fTan"></dd>
+          </dl>
+          <ul class="notes" id="notes" hidden></ul>
+          <div class="actions">
+            <button type="button" class="primary" id="copy">Copy x z</button>
+            <span class="copied" id="copied"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="planPanel" hidden>
+        <p class="answer-label">Plan view (north is up)</p>
+        <svg class="plan" id="plan" viewBox="0 0 420 300" role="img" aria-label="Plan view of points A, B and the estimated stronghold"></svg>
+        <div class="legend"><span>Solid: sight lines</span><span>Dashed: your walk</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var ids = ['ax', 'az', 'y1', 'bx', 'bz', 'y2'];
+  var $ = function (id) { return document.getElementById(id); };
+  var EXAMPLE = { ax: 0, az: 0, y1: -26.6, bx: -358, bz: 179, y2: -36.7 };
+
+  function yawVec(deg) {
+    var r = deg * Math.PI / 180;
+    return [-Math.sin(r), Math.cos(r)];
+  }
+  function angleBetween(u, v) {
+    var dot = u[0] * v[0] + u[1] * v[1];
+    var c = dot / (Math.hypot(u[0], u[1]) * Math.hypot(v[0], v[1]));
+    return Math.acos(Math.max(-1, Math.min(1, c)));
+  }
+  function compass(deg) {
+    var names = ['S', 'SW', 'W', 'NW', 'N', 'NE', 'E', 'SE'];
+    return names[Math.floor((((deg % 360) + 360) % 360 + 22.5) / 45) % 8];
+  }
+  function rad2deg(r) { return r * 180 / Math.PI; }
+
+  function triangulate(ax, az, y1, bx, bz, y2) {
+    var d1 = yawVec(y1), d2 = yawVec(y2);
+    var abVec = [bx - ax, bz - az];
+    var ab = Math.hypot(abVec[0], abVec[1]);
+    if (ab === 0) throw new Error('Points A and B are the same spot. Walk some distance before the second throw.');
+    var angA = angleBetween(abVec, d1);
+    var angB = angleBetween([ax - bx, az - bz], d2);
+    var angS = Math.PI - angA - angB;
+    if (angS <= 1e-6) {
+      throw new Error('The two sight lines never meet ahead of you. Check the yaw values, or walk farther before the second throw.');
+    }
+    var dist = ab * Math.sin(angB) / Math.sin(angS);
+    return {
+      x: ax + dist * d1[0],
+      z: az + dist * d1[1],
+      dist: dist,
+      ab: ab,
+      angA: rad2deg(angA),
+      angB: rad2deg(angB),
+      angS: rad2deg(angS),
+      tan: angB < Math.PI / 2 - 1e-9 ? ab * Math.tan(angB) : null
+    };
+  }
+
+  function read() {
+    var raw = ids.map(function (i) { return $(i).value.trim(); });
+    if (raw.some(function (s) { return s === ''; })) return null;
+    var nums = raw.map(Number);
+    if (nums.some(function (n) { return !isFinite(n); })) return null;
+    return nums;
+  }
+  function r0(n) { return Math.round(n) || 0; }
+  function show(which) {
+    $('empty').hidden = which !== 'empty';
+    $('error').hidden = which !== 'error';
+    $('ok').hidden = which !== 'ok';
+    $('planPanel').hidden = which !== 'ok';
+  }
+
+  function drawPlan(A, B, S) {
+    var W = 420, H = 300, pad = 40;
+    var pts = [A, B, S, [0, 0]];
+    var xs = pts.map(function (p) { return p[0]; });
+    var zs = pts.map(function (p) { return p[1]; });
+    var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
+    var minZ = Math.min.apply(null, zs), maxZ = Math.max.apply(null, zs);
+    var rx = Math.max(maxX - minX, 1), rz = Math.max(maxZ - minZ, 1);
+    var s = Math.min((W - 2 * pad) / rx, (H - 2 * pad) / rz);
+    var ox = (W - rx * s) / 2, oz = (H - rz * s) / 2;
+    function P(p) { return [ox + (p[0] - minX) * s, oz + (p[1] - minZ) * s]; }
+    var a = P(A), b = P(B), t = P(S), o = P([0, 0]);
+
+    function label(pt, text, cls) {
+      var right = pt[0] > W - 70;
+      var x = pt[0] + (right ? -9 : 9);
+      var y = pt[1] - 9;
+      if (y < 14) y = pt[1] + 18;
+      return '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '"' +
+        (cls ? ' class="' + cls + '"' : '') + (right ? ' text-anchor="end"' : '') + '>' + text + '</text>';
+    }
+    var svg = '';
+    svg += '<line class="grid" x1="0" y1="' + o[1].toFixed(1) + '" x2="' + W + '" y2="' + o[1].toFixed(1) + '"/>';
+    svg += '<line class="grid" x1="' + o[0].toFixed(1) + '" y1="0" x2="' + o[0].toFixed(1) + '" y2="' + H + '"/>';
+    svg += '<path class="origin" d="M' + (o[0] - 5).toFixed(1) + ' ' + o[1].toFixed(1) + 'h10M' + o[0].toFixed(1) + ' ' + (o[1] - 5).toFixed(1) + 'v10"/>';
+    svg += label(o, '0,0', 'dim');
+    svg += '<line class="walk" x1="' + a[0].toFixed(1) + '" y1="' + a[1].toFixed(1) + '" x2="' + b[0].toFixed(1) + '" y2="' + b[1].toFixed(1) + '"/>';
+    svg += '<line class="sight" x1="' + a[0].toFixed(1) + '" y1="' + a[1].toFixed(1) + '" x2="' + t[0].toFixed(1) + '" y2="' + t[1].toFixed(1) + '"/>';
+    svg += '<line class="sight" x1="' + b[0].toFixed(1) + '" y1="' + b[1].toFixed(1) + '" x2="' + t[0].toFixed(1) + '" y2="' + t[1].toFixed(1) + '"/>';
+    svg += '<circle class="dot" cx="' + a[0].toFixed(1) + '" cy="' + a[1].toFixed(1) + '" r="5"/>' + label(a, 'A');
+    svg += '<circle class="dot" cx="' + b[0].toFixed(1) + '" cy="' + b[1].toFixed(1) + '" r="5"/>' + label(b, 'B');
+    svg += '<circle class="target" cx="' + t[0].toFixed(1) + '" cy="' + t[1].toFixed(1) + '" r="7"/>' + label(t, 'Stronghold');
+    svg += '<text x="12" y="20" class="dim">N &#8593;</text>';
+    $('plan').innerHTML = svg;
+  }
+
+  function render() {
+    var v = read();
+    if (!v) { show('empty'); return; }
+    var r;
+    try { r = triangulate(v[0], v[1], v[2], v[3], v[4], v[5]); }
+    catch (e) { $('error').textContent = e.message; show('error'); return; }
+
+    $('rx').textContent = r0(r.x);
+    $('rz').textContent = r0(r.z);
+    $('fDistA').textContent = r0(r.dist) + ' blocks';
+    var d0 = Math.hypot(r.x, r.z);
+    $('fDistO').textContent = r0(d0) + ' blocks';
+    $('fAB').textContent = r.ab.toFixed(1) + ' blocks';
+    $('fAngA').textContent = r.angA.toFixed(1) + '°';
+    $('fAngB').textContent = r.angB.toFixed(1) + '°';
+    $('fAngS').textContent = r.angS.toFixed(1) + '°';
+    $('fTan').textContent = r.tan === null ? 'n/a' : r0(r.tan) + ' blocks';
+
+    var notes = [];
+    if (Math.abs(r.angA - 90) > 5) notes.push('Your turn was off from 90° by more than 5°. The result still holds, but check for a typo if it looks wrong.');
+    if (r.angS < 5) notes.push('The angle at the stronghold is very small, so the result is sensitive to yaw error. Walk farther before the second throw.');
+    if ((d0 < 1280 || d0 > 2816) && d0 > 300) notes.push('The first three strongholds usually sit roughly 1280 to 2816 blocks from (0, 0). This may be a later ring, or an angle is off.');
+    var ul = $('notes');
+    ul.innerHTML = notes.map(function (n) { return '<li>' + n + '</li>'; }).join('');
+    ul.hidden = notes.length === 0;
+
+    $('copied').textContent = '';
+    drawPlan([v[0], v[1]], [v[3], v[4]], [r.x, r.z]);
+    show('ok');
+  }
+
+  function setValues(obj) {
+    ids.forEach(function (i) { $(i).value = obj ? obj[i] : ''; });
+  }
+  function onEdit() { $('exampleChip').hidden = true; render(); }
+
+  ids.forEach(function (i) { $(i).addEventListener('input', onEdit); });
+  $('example').addEventListener('click', function () {
+    setValues(EXAMPLE);
+    $('exampleChip').hidden = false;
+    render();
+  });
+  $('clear').addEventListener('click', function () {
+    setValues(null);
+    $('exampleChip').hidden = true;
+    render();
+  });
+  $('copy').addEventListener('click', function () {
+    var text = $('rx').textContent + ' ' + $('rz').textContent;
+    function fallback() {
+      var range = document.createRange();
+      range.selectNodeContents(document.querySelector('.coords'));
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      $('copied').textContent = 'Press Ctrl+C or long-press to copy.';
+    }
+    try {
+      navigator.clipboard.writeText(text).then(function () {
+        $('copied').textContent = 'Copied ' + text;
+      }, fallback);
+    } catch (e) { fallback(); }
+  });
+
+  setValues(EXAMPLE);
+  $('exampleChip').hidden = false;
+  render();
+})();
+</script>
+
+</body></html>
